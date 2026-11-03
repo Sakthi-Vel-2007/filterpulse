@@ -8,6 +8,7 @@ import Overview from "./pages/Overview";
 import WaterQuality from "./pages/WaterQuality";
 import PumpLoad from "./pages/PumpLoad";
 import FilterHealth from "./pages/FilterHealth";
+import PredictionModel from "./pages/PredictionModel";
 import Alerts from "./pages/Alerts";
 import Compare from "./pages/Compare";
 import About from "./pages/About";
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/water" element={<WaterQuality />} />
             <Route path="/pump" element={<PumpLoad />} />
             <Route path="/filters" element={<FilterHealth />} />
+            <Route path="/model" element={<PredictionModel />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/about" element={<About />} />

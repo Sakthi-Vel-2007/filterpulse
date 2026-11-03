@@ -7,6 +7,7 @@ import {
   Bell,
   Scale,
   Info,
+  Cpu,
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +15,7 @@ const navItems = [
   { label: "Water Quality", icon: Droplets, path: "/water" },
   { label: "Pump & Load", icon: Zap, path: "/pump" },
   { label: "Filter Health", icon: Filter, path: "/filters" },
+  { label: "Prediction Model", icon: Cpu, path: "/model" },
   { label: "Alerts", icon: Bell, path: "/alerts" },
   { label: "Compare", icon: Scale, path: "/compare" },
   { label: "About", icon: Info, path: "/about" },

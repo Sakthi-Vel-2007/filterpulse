@@ -12,6 +12,7 @@ import {
 import type { StageId } from "../types";
 import SimBadge from "../components/SimBadge";
 import LoadingState from "../components/LoadingState";
+import SensorStatusPanel from "../components/SensorStatusPanel";
 import {
   Droplets,
   Droplet,
@@ -828,6 +829,9 @@ export default function Overview() {
           />
         </div>
       </section>
+
+      {/* Sensors & Data Source */}
+      <SensorStatusPanel />
     </div>
   );
 }
