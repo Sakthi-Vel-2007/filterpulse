@@ -1,7 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { useReading } from "../data/source";
+import { useReading, simulator } from "../data/source";
 import { normalisedCurrent, hydraulicLoadIndex, V_NOM } from "../model/load";
 import { STAGES } from "../model/remainingLife";
+import {
+  normalisedFlow,
+  slope,
+  flowLossPer100L,
+  T_REF,
+  TEMP_COEFF,
+  FLOW_LIMIT,
+  CLEAN_FILTER_FLOW,
+  getFallbackMode,
+  setFallbackMode,
+} from "../model/flowDecay";
 import {
   Zap,
   Activity,
@@ -11,7 +22,12 @@ import {
   Loader2,
   Sliders,
   CheckCircle2,
+  TrendingDown,
+  ThermometerSnowflake,
+  ShieldAlert,
+  ArrowRight,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -40,6 +56,10 @@ interface HistoryPoint {
   rawCurrent: number;
   normCurrent: number;
   hli: number;
+  litres: number;
+  rawFlow: number;
+  normFlow: number;
+  temp: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -149,13 +169,40 @@ export default function PumpLoad() {
   const reading = useReading();
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [supplyVoltage, setSupplyVoltage] = useState(24.0);
+  const [coldWaterActive, setColdWaterActive] = useState(false);
+  const [fallbackActive, setFallbackActive] = useState(() => getFallbackMode());
   const idxRef = useRef(0);
+
+  // Sync fallback mode across tabs/pages
+  useEffect(() => {
+    const handler = () => setFallbackActive(getFallbackMode());
+    window.addEventListener("filterpulse_fallback_change", handler);
+    return () => window.removeEventListener("filterpulse_fallback_change", handler);
+  }, []);
+
+  const toggleFallback = () => {
+    const next = !fallbackActive;
+    setFallbackMode(next);
+    setFallbackActive(next);
+  };
+
+  const toggleColdWater = () => {
+    if (coldWaterActive) {
+      simulator.controls.temp = Math.min(45, simulator.controls.temp + 10);
+      setColdWaterActive(false);
+    } else {
+      simulator.controls.temp = Math.max(10, simulator.controls.temp - 10);
+      setColdWaterActive(true);
+    }
+  };
 
   useEffect(() => {
     if (!reading) return;
     idxRef.current += 1;
     const norm = normalisedCurrent(reading.current, reading.voltage);
     const hli = hydraulicLoadIndex(reading.current, reading.voltage, BASELINE_NORM);
+    const nFlow = normalisedFlow(reading.flow, reading.temp);
+
     setHistory((prev) => {
       const next = [
         ...prev,
@@ -164,6 +211,10 @@ export default function PumpLoad() {
           rawCurrent: reading.current,
           normCurrent: norm,
           hli,
+          litres: Number(simulator.litresTotal.toFixed(1)),
+          rawFlow: reading.flow,
+          normFlow: nFlow,
+          temp: reading.temp,
         },
       ];
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
@@ -409,6 +460,259 @@ export default function PumpLoad() {
         </div>
       </div>
 
+      {/* ------------------------------------------------------------ */}
+      {/* Flow Decay Slope Section                                     */}
+      {/* ------------------------------------------------------------ */}
+      {(() => {
+        const xs = history.map((h) => h.litres);
+        const ys = history.map((h) => h.normFlow);
+        const flowDecaySlope = slope(xs, ys);
+        const lossPer100L = flowLossPer100L(flowDecaySlope);
+        const currentNormFlow = normalisedFlow(reading.flow, reading.temp);
+
+        return (
+          <div className="bg-[#111d35] rounded-2xl border border-cyan-500/40 p-5 sm:p-6 space-y-5 shadow-xl shadow-cyan-950/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-cyan-500/15 text-cyan-400">
+                  <TrendingDown className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white">Flow Decay Slope</h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      Simulated Sensor Analysis
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Temperature-compensated permeate flow regression over cumulative throughput
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Cold Water Test Button */}
+                <button
+                  onClick={toggleColdWater}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                    coldWaterActive
+                      ? "bg-cyan-500 text-gray-900 border border-cyan-400 ring-2 ring-cyan-400/30"
+                      : "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25"
+                  }`}
+                >
+                  <ThermometerSnowflake className="w-3.5 h-3.5" />
+                  <span>
+                    {coldWaterActive ? "Cold Water Active (-10°C) — Reset" : "Cold water test (-10°C)"}
+                  </span>
+                </button>
+
+                {/* Fallback Mode Toggle */}
+                <button
+                  onClick={toggleFallback}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                    fallbackActive
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/50 ring-2 ring-amber-500/20"
+                      : "bg-[#0a1628] text-gray-400 border-[#1e3a5f] hover:text-white"
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Fallback mode (pump signal weak): {fallbackActive ? "ON" : "OFF"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Plain Explanation Required by Prompt */}
+            <div className="rounded-xl bg-[#0a1628] border border-[#1e3a5f] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-white">
+                    Flow falls as stages clog. Temperature correction separates cold water from real clogging.
+                  </p>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Cold water increases viscosity (~2.5% per °C drop), causing raw permeate flow to decline even when filters are spotless.
+                    FilterPulse applies viscosity normalisation: <code className="text-cyan-300">Q_norm = Q / (1 + 0.025 * (T - 25°C))</code> to isolate genuine pore blockages.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cold Water Test Active Alert Banner */}
+            {coldWaterActive && (
+              <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/30 p-3.5 text-xs text-cyan-300 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ThermometerSnowflake className="w-4 h-4 text-cyan-400 shrink-0 animate-pulse" />
+                  <span>
+                    <strong>Test in progress:</strong> Water temperature forced 10°C cooler (currently <strong>{reading.temp.toFixed(1)}°C</strong>).
+                    Notice below: the purple raw flow line drops, while the cyan temperature-corrected flow line stays steady!
+                  </span>
+                </div>
+                <button
+                  onClick={toggleColdWater}
+                  className="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-[11px] font-semibold shrink-0"
+                >
+                  Restore Normal Temp
+                </button>
+              </div>
+            )}
+
+            {/* Key Rate Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Slope metric */}
+              <div className="bg-[#0a1628] rounded-xl border border-cyan-500/30 p-4 space-y-1">
+                <span className="text-xs text-gray-400">Flow Decay Slope</span>
+                <div className="text-2xl font-bold text-cyan-300">
+                  {lossPer100L.toFixed(4)} <span className="text-xs font-semibold text-gray-400">L/min lost per 100 L</span>
+                </div>
+                <span className="text-[10px] text-gray-500 block">
+                  Least-squares slope over {history.length} telemetry readings
+                </span>
+              </div>
+
+              {/* Current Raw vs Corrected Flow */}
+              <div className="bg-[#0a1628] rounded-xl border border-[#1e3a5f] p-4 space-y-1">
+                <span className="text-xs text-gray-400">Current Flow Comparison</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold text-white">
+                    {reading.flow.toFixed(3)} <span className="text-xs text-gray-400 font-normal">raw</span>
+                  </span>
+                  <span className="text-gray-500 text-sm">vs</span>
+                  <span className="text-xl font-bold text-cyan-300">
+                    {currentNormFlow.toFixed(3)} <span className="text-xs text-cyan-400 font-normal">corrected</span>
+                  </span>
+                </div>
+                <span className="text-[10px] text-gray-500 block">
+                  Reference: {T_REF}°C (Temp coeff: {TEMP_COEFF * 100}%/°C)
+                </span>
+              </div>
+
+              {/* Fallback Prognostics Status */}
+              <div className={`rounded-xl border p-4 space-y-1 ${
+                fallbackActive
+                  ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
+                  : "bg-[#0a1628] border-[#1e3a5f] text-gray-400"
+              }`}>
+                <span className="text-xs">Fallback Prognostics Signal</span>
+                <div className="text-lg font-bold flex items-center gap-1.5">
+                  {fallbackActive ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-amber-400" />
+                      <span className="text-amber-300">Active (Flow-Only)</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="text-white">Dual-Domain (Pump + Flow)</span>
+                    </>
+                  )}
+                </div>
+                <Link
+                  to="/filters"
+                  className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 mt-0.5"
+                >
+                  <span>Inspect in Filter Health</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Flow Trend Chart (Raw vs Corrected with Litres on X-Axis) */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="font-semibold text-gray-300">Permeate Flow vs Cumulative Litres Processed (Last 60 readings)</span>
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-[#a78bfa] rounded" />
+                    <span>Raw Flow</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-[#22d3ee] rounded" />
+                    <span>Corrected Flow (25°C)</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 border-b border-dashed border-[#ef4444]" />
+                    <span className="text-red-400">Limit (0.315 L/m)</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-64 w-full bg-[#0a1628] rounded-xl border border-[#1e3a5f] p-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="#1e3a5f" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="litres"
+                      tick={{ fill: "#6b7280", fontSize: 10 }}
+                      axisLine={{ stroke: "#1e3a5f" }}
+                      tickLine={false}
+                      tickFormatter={(l) => `${Math.round(Number(l))} L`}
+                      label={{
+                        value: "Cumulative Litres Processed",
+                        position: "insideBottom",
+                        offset: -5,
+                        fill: "#6b7280",
+                        fontSize: 10,
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fill: "#6b7280", fontSize: 10 }}
+                      axisLine={{ stroke: "#1e3a5f" }}
+                      tickLine={false}
+                      width={48}
+                      domain={["auto", "auto"]}
+                      unit=" L/m"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#0f1f38",
+                        border: "1px solid #1e3a5f",
+                        borderRadius: 8,
+                        color: "#e5e7eb",
+                        fontSize: 12,
+                      }}
+                      formatter={(val: any, name: any) => [
+                        val != null ? `${Number(val).toFixed(3)} L/min` : "",
+                        name === "rawFlow" ? "Raw Flow" : "Temp-Corrected Flow",
+                      ]}
+                      labelFormatter={(l) => `Litres: ${Math.round(Number(l))} L`}
+                    />
+                    <ReferenceLine
+                      y={FLOW_LIMIT}
+                      stroke="#ef4444"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: `Limit: ${FLOW_LIMIT.toFixed(3)} L/min`,
+                        fill: "#ef4444",
+                        fontSize: 10,
+                        position: "top",
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="rawFlow"
+                      name="rawFlow"
+                      stroke="#a78bfa"
+                      strokeWidth={1.75}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="normFlow"
+                      name="normFlow"
+                      stroke="#22d3ee"
+                      strokeWidth={2.5}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Assumptions panel */}
       <div className="bg-[#111d35] rounded-xl border border-[#1e3a5f] shadow p-5 space-y-3">
         <div className="flex items-center gap-2 text-gray-300 text-sm font-medium">
@@ -429,6 +733,22 @@ export default function PumpLoad() {
             <span>
               <strong className="text-gray-300">Baseline normalised current = {BASELINE_NORM} A</strong>{" "}
               — Clean filter reference{" "}
+              <span className="text-amber-500 text-xs">(Placeholder assumption)</span>
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-amber-400">⚠️</span>
+            <span>
+              <strong className="text-gray-300">T_REF = {T_REF} °C &amp; TEMP_COEFF = {TEMP_COEFF}</strong>{" "}
+              — Water permeability viscosity compensation (2.5%/°C){" "}
+              <span className="text-amber-500 text-xs">(Placeholder assumption)</span>
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-amber-400">⚠️</span>
+            <span>
+              <strong className="text-gray-300">FLOW_LIMIT = {FLOW_LIMIT.toFixed(3)} L/min</strong>{" "}
+              — 70% of clean-filter flow ({CLEAN_FILTER_FLOW} L/min){" "}
               <span className="text-amber-500 text-xs">(Placeholder assumption)</span>
             </span>
           </li>
