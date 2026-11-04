@@ -22,6 +22,7 @@ import {
   Cell,
 } from "recharts";
 import type { Reading } from "../types";
+import WaterSeverityScore from "../components/WaterSeverityScore";
 
 /* ------------------------------------------------------------------ */
 /*  History                                                           */
@@ -176,7 +177,11 @@ export default function WaterQuality() {
   const gData = gaugeData(score);
 
   const scoreColor =
-    score < 30 ? "text-emerald-400" : score < 60 ? "text-amber-400" : "text-red-400";
+  score <= 30
+    ? "text-emerald-400"
+    : score <= 60
+    ? "text-amber-400"
+    : "text-red-400";
 
   return (
     <div className="space-y-6">
@@ -239,12 +244,23 @@ export default function WaterQuality() {
             </PieChart>
           </ResponsiveContainer>
 
-          {/* Center label */}
-          <div className="absolute inset-0 flex items-end justify-center pb-1">
-            <span className={`text-3xl font-bold ${scoreColor}`}>
-              {score.toFixed(0)}
-            </span>
-          </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+  <span className={`text-3xl font-bold ${scoreColor}`}>
+    {score.toFixed(0)}
+  </span>
+
+  <p
+    className={`text-sm font-semibold ${
+      score <= 30
+        ? "text-emerald-400"
+        : score <= 60
+        ? "text-amber-400"
+        : "text-red-400"
+    }`}
+  >
+    {score <= 30 ? "Healthy" : score <= 60 ? "Medium" : "Danger"}
+  </p>
+</div>
         </div>
 
         <p className="text-xs text-gray-500 mt-3 text-center max-w-xs">
