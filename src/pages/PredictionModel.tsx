@@ -6,6 +6,8 @@ import { STAGES, remainingDays, remainingLitres, status } from "../model/remaini
 import { CAL, blend, estimatePhysics, stageFouling } from "../model/physicsEstimate";
 import type { PhysicsEstimate } from "../model/physicsEstimate";
 import type { StageId } from "../types";
+import SendAlertButton from "../components/SendAlertButton";
+
 
 const IDS: StageId[] = ["sediment", "uf", "ro"];
 const BAND = { normal: 1.05, watch: 1.1 }; // placeholder bands, to be validated on rig
@@ -201,6 +203,11 @@ export default function PredictionModel() {
 
       <Box title="5. Alert sent to the app (example)">
         <p className={`text-base font-semibold ${ST_CLS[worst.st]}`}>{message}</p>
+        <SendAlertButton
+          level={worst.st === "ok" ? "info" : worst.st}
+          stage={worst.id}
+          days={worst.days}
+        />
       </Box>
     </div>
   );
