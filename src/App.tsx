@@ -4,6 +4,8 @@ import SimBadge from "./components/SimBadge";
 import DemoControls from "./components/DemoControls";
 
 // Pages
+import MyPurifier from "./pages/MyPurifier";
+import { AuthProvider } from "./lib/AuthContext";
 import Overview from "./pages/Overview";
 import WaterQuality from "./pages/WaterQuality";
 import PumpLoad from "./pages/PumpLoad";
@@ -15,6 +17,7 @@ import About from "./pages/About";
 
 export default function App() {
   return (
+  <AuthProvider>
     <div className="min-h-screen bg-[#0a1628] text-white flex">
       {/* Sidebar Navigation */}
       <Sidebar />
@@ -42,6 +45,7 @@ export default function App() {
             <Route path="/pump" element={<PumpLoad />} />
             <Route path="/filters" element={<FilterHealth />} />
             <Route path="/model" element={<PredictionModel />} />
+            <Route path="/purifier" element={<MyPurifier />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/about" element={<About />} />
@@ -52,5 +56,6 @@ export default function App() {
       {/* Floating Demo Controls Panel */}
       <DemoControls />
     </div>
-  );
+  </AuthProvider>
+);
 }
