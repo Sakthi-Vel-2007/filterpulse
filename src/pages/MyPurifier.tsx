@@ -6,6 +6,15 @@ interface Msg {
   ok: boolean;
   text: string;
 }
+interface Device {
+  id: string;
+  role: "owner" | "member";
+}
+interface ApiReply {
+  devices?: Device[];
+  code?: string;
+  expiresInHours?: number;
+}
 
 const card = "rounded-2xl border border-[#1e3a5f] bg-[#111d35] p-5 space-y-3";
 const input =
@@ -18,7 +27,8 @@ export default function MyPurifier() {
   const [code, setCode] = useState(params.get("c") ?? "");
   const [msg, setMsg] = useState<Msg | null>(null);
   const [busy, setBusy] = useState(false);
-  const [devices, setDevices] = useState<string[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [shared, setShared] = useState<{ id: string; code: string; hours: number } | null>(null);
 
   const call = useCallback(
     async (path: string, body?: unknown) => {
@@ -31,7 +41,7 @@ export default function MyPurifier() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      return data as { devices?: string[] };
+      return data as ApiReply;
     },
     [user]
   );
@@ -76,6 +86,16 @@ export default function MyPurifier() {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not link the purifier" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function createShare(id: string) {
+    setMsg(null);
+    try {
+      const data = await call("/api/share-code", { deviceId: id });
+      setShared({ id, code: data.code ?? "", hours: data.expiresInHours ?? 24 });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not create a share code" });
     }
   }
 
@@ -126,7 +146,8 @@ export default function MyPurifier() {
           <div className={card}>
             <h2 className="text-sm font-semibold text-white">Link a purifier</h2>
             <p className="text-xs text-gray-400">
-              Scan the QR sticker on the purifier, or enter the device ID and code printed on it.
+              Enter the device ID and a code: the claim code printed on the purifier, or a share
+              code from its owner.
             </p>
             <input
               className={input}
@@ -136,7 +157,7 @@ export default function MyPurifier() {
             />
             <input
               className={input}
-              placeholder="Claim code"
+              placeholder="Claim code or share code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
@@ -154,9 +175,33 @@ export default function MyPurifier() {
             {devices.length === 0 ? (
               <p className="text-xs text-gray-400">None linked yet.</p>
             ) : (
-              <ul className="space-y-1 text-sm text-gray-200">
+              <ul className="space-y-3 text-sm text-gray-200">
                 {devices.map((d) => (
-                  <li key={d}>{d}</li>
+                  <li key={d.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        {d.id}{" "}
+                        <span className="text-xs text-gray-400">
+                          ({d.role === "owner" ? "owner" : "shared with you"})
+                        </span>
+                      </span>
+                      {d.role === "owner" && (
+                        <button
+                          onClick={() => void createShare(d.id)}
+                          className="text-xs text-cyan-300 underline"
+                        >
+                          Create share code
+                        </button>
+                      )}
+                    </div>
+                    {shared && shared.id === d.id && (
+                      <p className="text-xs text-emerald-300">
+                        Share code: <span className="font-mono">{shared.code}</span>. It works once
+                        and expires in {shared.hours} hours. Give it, with the device ID {d.id}, to
+                        the person you want to add.
+                      </p>
+                    )}
+                  </li>
                 ))}
               </ul>
             )}

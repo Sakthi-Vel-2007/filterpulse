@@ -17,7 +17,6 @@ const navItems = [
   { label: "Pump & Load", icon: Zap, path: "/pump" },
   { label: "Filter Health", icon: Filter, path: "/filters" },
   { label: "Prediction Model", icon: Cpu, path: "/model" },
-  { label: "Prediction Model", icon: Cpu, path: "/model" },
   { label: "My Purifier", icon: User, path: "/purifier" },
   { label: "Alerts", icon: Bell, path: "/alerts" },
   { label: "Compare", icon: Scale, path: "/compare" },

@@ -12,7 +12,19 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Please sign in again" });
   }
 
-  const snap = await db.ref(`users/${decoded.uid}/devices`).get();
-  const devices = snap.exists() ? Object.keys(snap.val()) : [];
-  return res.status(200).json({ devices });
+  const uid = decoded.uid;
+  const snap = await db.ref(`users/${uid}/devices`).get();
+  const ids = snap.exists() ? Object.keys(snap.val()) : [];
+
+  const found = await Promise.all(
+    ids.map(async (id) => {
+      const dev = (await db.ref(`devices/${id}`).get()).val();
+      if (!dev) return null;
+      const isOwner = dev.ownerUid === uid;
+      const isMember = !!(dev.members && dev.members[uid]);
+      if (!isOwner && !isMember) return null; // access was removed
+      return { id, role: isOwner ? "owner" : "member" };
+    })
+  );
+  return res.status(200).json({ devices: found.filter(Boolean) });
 }

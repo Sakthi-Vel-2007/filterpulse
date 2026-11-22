@@ -7,6 +7,7 @@ const RANK = { ok: 0, warning: 1, urgent: 2 };
 const LABEL = { warning: "Warning", urgent: "Urgent" };
 const GAP_SAME = 60 * 60 * 1000; // repeat of the same level: at most hourly
 const GAP_ESCALATE = 60 * 1000;  // a worse level: after at least a minute
+const MAX_RECIPIENTS = 6;
 
 function safeEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
@@ -52,34 +53,49 @@ export default async function handler(req, res) {
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailPass) return res.status(500).json({ error: "Email not configured" });
 
-  let ownerEmail;
-  try {
-    ownerEmail = (await auth.getUser(dev.ownerUid)).email;
-  } catch {
-    return res.status(500).json({ error: "Owner lookup failed" });
+  // The owner plus every linked account, looked up on the server
+  const uids = [...new Set([dev.ownerUid, ...Object.keys(dev.members || {})])].slice(
+    0,
+    MAX_RECIPIENTS
+  );
+  const emails = [];
+  for (const uid of uids) {
+    try {
+      const u = await auth.getUser(uid);
+      if (u.email) emails.push(u.email);
+    } catch {
+      // skip an account that no longer exists
+    }
   }
-  if (!ownerEmail) return res.status(500).json({ error: "Owner has no email" });
+  if (emails.length === 0) return res.status(500).json({ error: "No recipient emails found" });
 
   const text =
     typeof body.text === "string" && body.text.trim()
       ? body.text.slice(0, 400)
       : "Your purifier needs attention.";
 
-  try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: gmailUser, pass: gmailPass },
-    });
-    await transporter.sendMail({
-      from: `FilterPulse Alerts <${gmailUser}>`,
-      to: ownerEmail,
-      subject: `${LABEL[level]}: FilterPulse alert for purifier ${deviceId}`,
-      text: `${text}\n\nPurifier: ${deviceId}\n\nSent by FilterPulse (atomQUEST 2026, Team SYNERVA).`,
-    });
-  } catch {
-    return res.status(502).json({ error: "Email send failed" });
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: gmailUser, pass: gmailPass },
+  });
+
+  let sent = 0;
+  for (const to of emails) {
+    try {
+      // one separate email per person, so nobody sees the others' addresses
+      await transporter.sendMail({
+        from: `FilterPulse Alerts <${gmailUser}>`,
+        to,
+        subject: `${LABEL[level]}: FilterPulse alert for purifier ${deviceId}`,
+        text: `${text}\n\nPurifier: ${deviceId}\n\nSent by FilterPulse (atomQUEST 2026, Team SYNERVA).`,
+      });
+      sent += 1;
+    } catch {
+      // try the next recipient
+    }
   }
+  if (sent === 0) return res.status(502).json({ error: "Email send failed" });
 
   await stateRef.set({ lastRank: rank, lastSentAt: now });
-  return res.status(200).json({ ok: true, sent: true });
+  return res.status(200).json({ ok: true, sent: true, recipients: sent });
 }
