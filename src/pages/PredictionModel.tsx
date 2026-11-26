@@ -65,6 +65,7 @@ export default function PredictionModel() {
 
   useEffect(() => {
     if (!r) return;
+
     const raw = estimatePhysics({
       current: r.current,
       voltage: r.voltage,
@@ -73,10 +74,13 @@ export default function PredictionModel() {
       tdsIn: r.tdsIn,
       tdsOut: r.tdsOut,
     });
+
     setEst((prev) => (prev ? blend(prev, raw) : raw));
   }, [r]);
 
-  if (!r || !est) return <div className="p-8 text-slate-400">Initialising sensors…</div>;
+  if (!r || !est) {
+    return <div className="p-8 text-slate-400">Initialising sensors…</div>;
+  }
 
   const sev = severityScore({
     turbidity: r.turbidity,
@@ -94,9 +98,11 @@ export default function PredictionModel() {
   const rows = IDS.map((id) => {
     const litres = remainingLitres(F[id], id, sev);
     const days = remainingDays(litres);
+
     const trueDays = showTruth
       ? remainingDays(remainingLitres(simulator.fouling[id], id, sev))
       : 0;
+
     const errPct =
       showTruth && trueDays > 0
         ? ((days - trueDays) / trueDays) * 100
@@ -127,8 +133,12 @@ export default function PredictionModel() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
+
       <div>
-        <h1 className="text-2xl font-bold text-white">Prediction Model</h1>
+        <h1 className="text-2xl font-bold text-white">
+          Prediction Model
+        </h1>
+
         <p className="text-sm text-slate-400">
           How FilterPulse turns pump behaviour and water quality into remaining filter life.
           All values are simulated.
@@ -136,13 +146,17 @@ export default function PredictionModel() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
+
         <Box title="1. Inputs (live, simulated)">
+
           <p>
             Hydraulic Load Index:{" "}
             <span className="font-semibold text-white">
               {est.hli.toFixed(3)}
             </span>{" "}
-            <span className={band.cls}>({band.label})</span>
+            <span className={band.cls}>
+              ({band.label})
+            </span>
           </p>
 
           <p className="text-xs text-slate-500">
@@ -161,11 +175,19 @@ export default function PredictionModel() {
 
           <p>
             Water severity score:{" "}
-            <span className="font-semibold text-white">{sev}</span> / 100
+            <span className="font-semibold text-white">
+              {sev}
+            </span>{" "}
+            / 100
           </p>
+
         </Box>
 
-        <Box title="2. Physics model" tag="Calculated live · placeholder constants">
+        <Box
+          title="2. Physics model"
+          tag="Calculated live · placeholder constants"
+        >
+
           <Row
             label="Flow-decay cross-check"
             value={
@@ -182,10 +204,14 @@ export default function PredictionModel() {
             Calculated from the signals only. Clean-filter constants are placeholders to be
             measured on the rig.
           </p>
+
         </Box>
 
         <Box title="3. ML correction">
-          <p>Gradient-boosted regressor that learns the physics model&apos;s error.</p>
+
+          <p>
+            Gradient-boosted regressor that learns the physics model&apos;s error.
+          </p>
 
           <p className="text-slate-400">
             Planned inputs: load index (mean and trend), flow-decay slope, RO rejection, severity,
@@ -193,17 +219,22 @@ export default function PredictionModel() {
           </p>
 
           <p>
-            Correction: <span className="font-semibold text-white">–</span>{" "}
+            Correction:{" "}
+            <span className="font-semibold text-white">–</span>{" "}
             <span className="text-xs text-slate-500">
               needs controlled-clogging bench data
             </span>
           </p>
+
         </Box>
+
       </div>
 
-      <Box title="4. Output: remaining life per stage" tag="Physics-only estimate (simulated)">
+      <Box title="4. Output: remaining life per stage">
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left">
+
             <thead className="text-xs uppercase text-slate-400">
               <tr>
                 <th className="py-1 pr-3">Stage</th>
@@ -224,16 +255,23 @@ export default function PredictionModel() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-t border-slate-800">
-                  <td className="py-2 pr-3 text-white">{row.name}</td>
+
+                  <td className="py-2 pr-3 text-white">
+                    {row.name}
+                  </td>
+
                   <td className="py-2 pr-3">
                     {(row.fouling * 100).toFixed(0)}%
                   </td>
+
                   <td className="py-2 pr-3">
                     {Math.round(row.litres).toLocaleString()} L
                   </td>
+
                   <td className="py-2 pr-3">
                     {Math.round(row.days)} d
                   </td>
+
                   <td className={`py-2 pr-3 font-medium ${ST_CLS[row.st]}`}>
                     {row.st}
                   </td>
@@ -243,15 +281,18 @@ export default function PredictionModel() {
                       <td className="py-2 pr-3 text-slate-400">
                         {Math.round(row.trueDays)} d
                       </td>
+
                       <td className="py-2 text-slate-400">
                         {row.errPct >= 0 ? "+" : ""}
                         {row.errPct.toFixed(0)}%
                       </td>
                     </>
                   )}
+
                 </tr>
               ))}
             </tbody>
+
           </table>
         </div>
 
@@ -260,9 +301,11 @@ export default function PredictionModel() {
           the pressure-transducer reference. Sediment and UF share one estimate because pump
           current alone cannot separate them.
         </p>
+
       </Box>
 
       <Box title="5. Alert sent to the app (example)">
+
         <p className={`text-base font-semibold ${ST_CLS[worst.st]}`}>
           {message}
         </p>
@@ -272,7 +315,9 @@ export default function PredictionModel() {
           stage={worst.id}
           days={worst.days}
         />
+
       </Box>
+
     </div>
   );
 }
