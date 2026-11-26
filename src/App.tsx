@@ -14,6 +14,7 @@ import PredictionModel from "./pages/PredictionModel";
 import Alerts from "./pages/Alerts";
 import Compare from "./pages/Compare";
 import About from "./pages/About";
+import LiveCheck from "./pages/LiveCheck";
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/about" element={<About />} />
+            <Route path="/livecheck" element={<LiveCheck />} />
           </Routes>
         </main>
       </div>
