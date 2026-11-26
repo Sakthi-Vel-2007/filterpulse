@@ -11,7 +11,7 @@ import type { StageId } from "../types";
 import SendAlertButton from "../components/SendAlertButton";
 
 const IDS: StageId[] = ["sediment", "uf", "ro"];
-const BAND = { normal: 1.05, watch: 1.1 }; // placeholder bands, to be validated on rig
+const BAND = { normal: 1.05, watch: 1.1 };
 
 const ST_CLS = {
   ok: "text-emerald-300",
@@ -89,7 +89,6 @@ export default function PredictionModel() {
   const F = stageFouling(est);
   const agree = Math.abs(est.fFlow - est.fPumpAvg) < 0.1;
 
-  // Show simulator truth only in simulated mode
   const showTruth = mode === "simulated";
 
   const rows = IDS.map((id) => {
@@ -185,7 +184,7 @@ export default function PredictionModel() {
           </p>
         </Box>
 
-        <Box title="3. ML correction" tag="Not trained yet">
+        <Box title="3. ML correction">
           <p>Gradient-boosted regressor that learns the physics model&apos;s error.</p>
 
           <p className="text-slate-400">
