@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { simulator } from "../data/source";
+import { useMode } from "../data/live";
 
 export default function DemoControls() {
   const [open, setOpen] = useState(false);
   const [, forceUpdate] = useState(0);
+  const mode = useMode();
+
 
   const rerender = () => forceUpdate((n) => n + 1);
 
@@ -31,6 +34,7 @@ export default function DemoControls() {
   };
 
   /* ---------- collapsed fab ---------- */
+  if (mode === "live") return null;
   if (!open) {
     return (
       <button

@@ -15,6 +15,8 @@ import Alerts from "./pages/Alerts";
 import Compare from "./pages/Compare";
 import About from "./pages/About";
 import LiveCheck from "./pages/LiveCheck";
+import DataModeBar from "./components/DataModeBar";
+import LiveNotice from "./components/LiveNotice";
 
 export default function App() {
   return (
@@ -34,6 +36,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <DataModeBar />
             <SimBadge />
           </div>
         </header>

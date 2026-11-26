@@ -1,4 +1,6 @@
+
 import { useEffect, useState } from "react";
+import { useMode } from "../data/live";
 import type { ReactNode } from "react";
 import { simulator, useReading } from "../data/source";
 import { severityScore } from "../model/severity";
@@ -7,7 +9,6 @@ import { CAL, blend, estimatePhysics, stageFouling } from "../model/physicsEstim
 import type { PhysicsEstimate } from "../model/physicsEstimate";
 import type { StageId } from "../types";
 import SendAlertButton from "../components/SendAlertButton";
-
 
 const IDS: StageId[] = ["sediment", "uf", "ro"];
 const BAND = { normal: 1.05, watch: 1.1 }; // placeholder bands, to be validated on rig
@@ -24,7 +25,15 @@ function hliBand(h: number) {
   return { label: "Replace soon", cls: "text-red-300" };
 }
 
-function Box({ title, tag, children }: { title: string; tag?: string; children: ReactNode }) {
+function Box({
+  title,
+  tag,
+  children,
+}: {
+  title: string;
+  tag?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4">
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -51,6 +60,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 
 export default function PredictionModel() {
   const r = useReading();
+  const mode = useMode();
   const [est, setEst] = useState<PhysicsEstimate | null>(null);
 
   useEffect(() => {
@@ -68,22 +78,47 @@ export default function PredictionModel() {
 
   if (!r || !est) return <div className="p-8 text-slate-400">Initialising sensors…</div>;
 
-  const sev = severityScore({ turbidity: r.turbidity, tdsIn: r.tdsIn, ph: r.ph, temp: r.temp });
+  const sev = severityScore({
+    turbidity: r.turbidity,
+    tdsIn: r.tdsIn,
+    ph: r.ph,
+    temp: r.temp,
+  });
+
   const band = hliBand(est.hli);
   const F = stageFouling(est);
   const agree = Math.abs(est.fFlow - est.fPumpAvg) < 0.1;
 
+  // Show simulator truth only in simulated mode
+  const showTruth = mode === "simulated";
+
   const rows = IDS.map((id) => {
     const litres = remainingLitres(F[id], id, sev);
     const days = remainingDays(litres);
-    const trueDays = remainingDays(remainingLitres(simulator.fouling[id], id, sev));
-    const errPct = trueDays > 0 ? ((days - trueDays) / trueDays) * 100 : 0;
-    return { id, name: STAGES[id].name, fouling: F[id], litres, days, st: status(days), trueDays, errPct };
+    const trueDays = showTruth
+      ? remainingDays(remainingLitres(simulator.fouling[id], id, sev))
+      : 0;
+    const errPct =
+      showTruth && trueDays > 0
+        ? ((days - trueDays) / trueDays) * 100
+        : 0;
+
+    return {
+      id,
+      name: STAGES[id].name,
+      fouling: F[id],
+      litres,
+      days,
+      st: status(days),
+      trueDays,
+      errPct,
+    };
   });
 
   const worst = [...rows].sort((a, b) => a.days - b.days)[0];
   const d = Math.ceil(worst.days);
   const dirty = sev > 40 ? " Inlet water is dirty this week." : "";
+
   const message =
     worst.st === "urgent"
       ? `Replace ${worst.name} in ~${d} days.${dirty}`
@@ -105,44 +140,45 @@ export default function PredictionModel() {
         <Box title="1. Inputs (live, simulated)">
           <p>
             Hydraulic Load Index:{" "}
-            <span className="font-semibold text-white">{est.hli.toFixed(3)}</span>{" "}
+            <span className="font-semibold text-white">
+              {est.hli.toFixed(3)}
+            </span>{" "}
             <span className={band.cls}>({band.label})</span>
           </p>
+
           <p className="text-xs text-slate-500">
             1.00 = clean filters. Bands are placeholders from the 5–15% current rise in the abstract.
           </p>
+
           <p>
             RO rejection ratio:{" "}
-            <span className="font-semibold text-white">{est.rejectionPct.toFixed(1)}%</span>{" "}
+            <span className="font-semibold text-white">
+              {est.rejectionPct.toFixed(1)}%
+            </span>{" "}
             <span className="text-slate-400">
               ({(est.rejectionPct - CAL.rejClean).toFixed(1)} vs {CAL.rejClean}% placeholder baseline)
             </span>
           </p>
+
           <p>
-            Water severity score: <span className="font-semibold text-white">{sev}</span> / 100
+            Water severity score:{" "}
+            <span className="font-semibold text-white">{sev}</span> / 100
           </p>
         </Box>
 
         <Box title="2. Physics model" tag="Calculated live · placeholder constants">
-          <div>
-            <Row label="Normalised current" value={`${est.normCurrent.toFixed(3)} A`} />
-            <Row label="Hydraulic load index" value={est.hli.toFixed(3)} />
-            <Row label="Corrected flow (25 °C)" value={`${est.flow25.toFixed(3)} L/min`} />
-            <Row label="Resistance index (R/R₀)" value={est.resistanceIdx.toFixed(3)} />
-            <Row label="RO fouling" value={`${(est.fRo * 100).toFixed(0)}%`} />
-            <Row label="Sediment + UF fouling" value={`${(est.fPre * 100).toFixed(0)}%`} />
-            <Row
-              label="Flow-decay cross-check"
-              value={
-                <span>
-                  {(est.fFlow * 100).toFixed(0)}%{" "}
-                  <span className={agree ? "text-emerald-300" : "text-amber-300"}>
-                    ({agree ? "agrees" : "check sensors"})
-                  </span>
+          <Row
+            label="Flow-decay cross-check"
+            value={
+              <span>
+                {(est.fFlow * 100).toFixed(0)}%{" "}
+                <span className={agree ? "text-emerald-300" : "text-amber-300"}>
+                  ({agree ? "agrees" : "check sensors"})
                 </span>
-              }
-            />
-          </div>
+              </span>
+            }
+          />
+
           <p className="text-xs text-slate-500">
             Calculated from the signals only. Clean-filter constants are placeholders to be
             measured on the rig.
@@ -151,13 +187,17 @@ export default function PredictionModel() {
 
         <Box title="3. ML correction" tag="Not trained yet">
           <p>Gradient-boosted regressor that learns the physics model&apos;s error.</p>
+
           <p className="text-slate-400">
             Planned inputs: load index (mean and trend), flow-decay slope, RO rejection, severity,
             temperature.
           </p>
+
           <p>
             Correction: <span className="font-semibold text-white">–</span>{" "}
-            <span className="text-xs text-slate-500">needs controlled-clogging bench data</span>
+            <span className="text-xs text-slate-500">
+              needs controlled-clogging bench data
+            </span>
           </p>
         </Box>
       </div>
@@ -172,28 +212,50 @@ export default function PredictionModel() {
                 <th className="py-1 pr-3">Remaining litres</th>
                 <th className="py-1 pr-3">Remaining days</th>
                 <th className="py-1 pr-3">Status</th>
-                <th className="py-1 pr-3">Simulator truth (days)</th>
-                <th className="py-1">Error</th>
+
+                {showTruth && (
+                  <>
+                    <th className="py-1 pr-3">Simulator truth (days)</th>
+                    <th className="py-1">Error</th>
+                  </>
+                )}
               </tr>
             </thead>
+
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-t border-slate-800">
                   <td className="py-2 pr-3 text-white">{row.name}</td>
-                  <td className="py-2 pr-3">{(row.fouling * 100).toFixed(0)}%</td>
-                  <td className="py-2 pr-3">{Math.round(row.litres).toLocaleString()} L</td>
-                  <td className="py-2 pr-3">{Math.round(row.days)} d</td>
-                  <td className={`py-2 pr-3 font-medium ${ST_CLS[row.st]}`}>{row.st}</td>
-                  <td className="py-2 pr-3 text-slate-400">{Math.round(row.trueDays)} d</td>
-                  <td className="py-2 text-slate-400">
-                    {row.errPct >= 0 ? "+" : ""}
-                    {row.errPct.toFixed(0)}%
+                  <td className="py-2 pr-3">
+                    {(row.fouling * 100).toFixed(0)}%
                   </td>
+                  <td className="py-2 pr-3">
+                    {Math.round(row.litres).toLocaleString()} L
+                  </td>
+                  <td className="py-2 pr-3">
+                    {Math.round(row.days)} d
+                  </td>
+                  <td className={`py-2 pr-3 font-medium ${ST_CLS[row.st]}`}>
+                    {row.st}
+                  </td>
+
+                  {showTruth && (
+                    <>
+                      <td className="py-2 pr-3 text-slate-400">
+                        {Math.round(row.trueDays)} d
+                      </td>
+                      <td className="py-2 text-slate-400">
+                        {row.errPct >= 0 ? "+" : ""}
+                        {row.errPct.toFixed(0)}%
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
         <p className="text-xs text-slate-500">
           &quot;Simulator truth&quot; exists only in simulation. On the bench rig it is replaced by
           the pressure-transducer reference. Sediment and UF share one estimate because pump
@@ -202,7 +264,10 @@ export default function PredictionModel() {
       </Box>
 
       <Box title="5. Alert sent to the app (example)">
-        <p className={`text-base font-semibold ${ST_CLS[worst.st]}`}>{message}</p>
+        <p className={`text-base font-semibold ${ST_CLS[worst.st]}`}>
+          {message}
+        </p>
+
         <SendAlertButton
           level={worst.st === "ok" ? "info" : worst.st}
           stage={worst.id}

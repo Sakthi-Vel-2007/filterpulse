@@ -1,7 +1,8 @@
-
+import { useEffect, useState } from "react";
 import { useReading } from "../data/source";
+import { liveAgeMs, useLive, useMode } from "../data/live";
 import { getSensorRows } from "../model/sensorStatus";
-import type { DataMode, SensorState } from "../model/sensorStatus";
+import type { SensorState } from "../model/sensorStatus";
 
 const STYLE: Record<SensorState, string> = {
   simulated: "bg-amber-500/15 text-amber-300 border-amber-500/40",
@@ -12,24 +13,37 @@ const STYLE: Record<SensorState, string> = {
 const LABEL: Record<SensorState, string> = {
   simulated: "Simulated",
   recorded: "Recorded",
-  connected: "Connected",
+  connected: "Reporting",
   offline: "Offline",
 };
 
 export default function SensorStatusPanel() {
   const r = useReading();
-  const mode: DataMode = "simulated"; // becomes dynamic when Live mode is added
+  const mode = useMode();
+  const live = useLive();
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   if (!r) return null;
 
-  const rows = getSensorRows(mode, r.ts, r.pumpType);
-  const secs = Math.max(0, Math.round((Date.now() - r.ts) / 1000));
+  const isLive = mode === "live";
+  const age = isLive ? liveAgeMs(live) : null;
+  // judge freshness with the server's clock, then hand a matching local timestamp to the model
+  const lastTs = isLive ? (age === null ? null : Date.now() - age) : r.ts;
+  const rows = getSensorRows(isLive ? "live" : "simulated", lastTs, r.pumpType);
+  const secs = isLive ? (age === null ? null : Math.round(age / 1000)) : Math.max(0, Math.round((Date.now() - r.ts) / 1000));
 
   return (
     <section className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-100">Sensors &amp; Data Source</h3>
         <span className="text-xs text-slate-400">
-          Mode: {mode} · Pump: {r.pumpType} · last update {secs}s ago
+          Mode: {mode} · Pump: {r.pumpType}
+          {secs !== null ? ` · last update ${secs}s ago` : ""}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -59,8 +73,9 @@ export default function SensorStatusPanel() {
         </table>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        These readings come from a simulator. &quot;Connected&quot; appears only when real hardware
-        data is arriving.
+        {isLive
+          ? "Status shows whether the purifier has reported recently. It does not prove that each individual sensor is working or calibrated. Turbidity is an approximate trend, and pH drifts between calibrations."
+          : "These readings come from a simulator. Live status appears only when a real purifier is reporting."}
       </p>
     </section>
   );

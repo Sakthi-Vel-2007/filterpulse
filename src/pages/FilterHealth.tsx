@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useReading, simulator } from "../data/source";
+import { useReading, useModelState } from "../data/source";
 import {
   STAGES,
   DAILY_LITRES,
@@ -177,6 +177,7 @@ interface FlowPoint {
 
 export default function FilterHealth() {
   const reading = useReading();
+  const { fouling: stageFouling, litresTotal } = useModelState();
   const [fallbackActive, setFallbackActive] = useState(() => getFallbackMode());
   const [flowHistory, setFlowHistory] = useState<FlowPoint[]>([]);
 
@@ -198,7 +199,7 @@ export default function FilterHealth() {
     if (!reading) return;
     const nFlow = normalisedFlow(reading.flow, reading.temp);
     setFlowHistory((prev) => {
-      const next = [...prev, { litres: simulator.litresTotal, normFlow: nFlow }];
+      const next = [...prev, { litres: litresTotal, normFlow: nFlow }];
       return next.length > 60 ? next.slice(-60) : next;
     });
   }, [reading]);
@@ -312,7 +313,7 @@ export default function FilterHealth() {
           const stage = STAGES[id];
 
           // 1. Pump-based primary calculation
-          const fouling = simulator.fouling[id];
+          const fouling = stageFouling[id];
           const pumpHP = healthPercent(fouling);
           const pumpLitres = remainingLitres(fouling, id, sev);
           const pumpDays = remainingDays(pumpLitres);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useReading, simulator } from "../data/source";
+import { useReading, useModelState } from "../data/source";
 import { severityScore } from "../model/severity";
 import { normalisedCurrent, hydraulicLoadIndex, V_NOM } from "../model/load";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../model/remainingLife";
 import type { StageId } from "../types";
 import SimBadge from "../components/SimBadge";
+import { CAL } from "../model/physicsEstimate";
 import LoadingState from "../components/LoadingState";
 import SensorStatusPanel from "../components/SensorStatusPanel";
 import {
@@ -187,11 +188,12 @@ function MetricCard({
 /*  Main Component: Overview                                          */
 /* ------------------------------------------------------------------ */
 
-const BASELINE_NORM = 1.0;
+
 const MAX_HISTORY = 30;
 
 export default function Overview() {
   const reading = useReading();
+  const { fouling, litresTotal } = useModelState();
   const [secondsAgo, setSecondsAgo] = useState(0);
 
   // Maintain 30-tick histories for sparklines
@@ -230,7 +232,7 @@ export default function Overview() {
     setSecondsAgo(0);
 
     const norm = normalisedCurrent(reading.current, reading.voltage);
-    const hli = hydraulicLoadIndex(reading.current, reading.voltage, BASELINE_NORM);
+    const hli = hydraulicLoadIndex(reading.current, reading.voltage, CAL.cleanCurrent);
     const rejection =
       reading.tdsIn > 0
         ? ((reading.tdsIn - reading.tdsOut) / reading.tdsIn) * 100
@@ -247,7 +249,7 @@ export default function Overview() {
       current: [...prev.current, reading.current].slice(-MAX_HISTORY),
       voltage: [...prev.voltage, reading.voltage].slice(-MAX_HISTORY),
       hli: [...prev.hli, hli].slice(-MAX_HISTORY),
-      litresTotal: [...prev.litresTotal, simulator.litresTotal].slice(-MAX_HISTORY),
+      litresTotal: [...prev.litresTotal, litresTotal].slice(-MAX_HISTORY),
     }));
   }, [reading]);
 
@@ -266,7 +268,7 @@ export default function Overview() {
     const stageIds: StageId[] = ["sediment", "uf", "ro"];
 
     const stages = stageIds.map((id) => {
-      const f = simulator.fouling[id];
+      const f =fouling[id];
       const hp = healthPercent(f);
       const remL = remainingLitres(f, id, sev);
       const remD = remainingDays(remL);
@@ -295,7 +297,7 @@ export default function Overview() {
     }
 
     const norm = normalisedCurrent(reading.current, reading.voltage);
-    const hli = hydraulicLoadIndex(reading.current, reading.voltage, BASELINE_NORM);
+    const hli = hydraulicLoadIndex(reading.current, reading.voltage, CAL.cleanCurrent);
     const rejection =
       reading.tdsIn > 0
         ? ((reading.tdsIn - reading.tdsOut) / reading.tdsIn) * 100
@@ -820,7 +822,7 @@ export default function Overview() {
           <MetricCard
             icon={<ArrowUpRight className="w-4 h-4" />}
             label="Litres Processed"
-            value={simulator.litresTotal.toFixed(0)}
+            value={litresTotal.toFixed(0)}
             unit="L"
             statusColor="cyan"
             sparkData={history.litresTotal}

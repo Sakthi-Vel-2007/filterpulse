@@ -11,7 +11,7 @@ export interface SensorRow {
   source: string;
 }
 
-const STALE_MS = 10_000; // live data older than 10 s counts as offline
+const STALE_MS = 25_000; // live data older than 10 s counts as offline
 
 export function stateFor(mode: DataMode, lastTs: number | null): SensorState {
   if (mode === "simulated") return "simulated";
@@ -37,7 +37,7 @@ export function getSensorRows(
           state: s,
           source: mode === "simulated" ? "Simulated BLDC controller" : "BLDC drive",
         }
-      : { component: "INA219 + 0.1 Ω shunt", measures: "Pump current", state: s, source: src };
+      : { component: "ACS712-05B (Hall effect)", measures: "Pump current", state: s, source: src };
 
   return [
     pump,

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useReading, simulator } from "../data/source";
+import { CAL } from "../model/physicsEstimate";
+import { useReading, useModelState } from "../data/source";
 import {
   STAGES,
   DAILY_LITRES,
@@ -418,7 +419,7 @@ function generateAlerts(
   const stageIds = Object.keys(STAGES) as StageId[];
 
   const norm = normalisedCurrent(reading.current, reading.voltage);
-  const hli = hydraulicLoadIndex(reading.current, reading.voltage, 1.0);
+  const hli = hydraulicLoadIndex(reading.current, reading.voltage, CAL.cleanCurrent);
 
   for (const id of stageIds) {
     const stage = STAGES[id];
@@ -520,6 +521,7 @@ function generateAlerts(
 
 export default function Alerts() {
   const reading = useReading();
+  const { fouling } = useModelState();
   const [diyStage, setDIYStage] = useState<string | null>(null);
 
   if (!reading) {
@@ -532,7 +534,7 @@ export default function Alerts() {
 
   const sev = severityScore(reading);
   const alerts = generateAlerts(
-    simulator.fouling as Record<StageId, number>,
+    fouling,
     sev,
     reading,
   );
