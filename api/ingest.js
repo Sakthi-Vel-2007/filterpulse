@@ -9,7 +9,7 @@ function safeEqual(a, b) {
 
 const RANGES = {
   tdsIn: [0, 3000], tdsOut: [0, 3000], temp: [-10, 100], turbidity: [0, 4000], ph: [0, 14],
-  flow: [0, 60], current: [-10, 10], voltage: [0, 60], litres: [0, 10000000],
+  flow: [0, 60], current: [-10, 10], voltage: [0, 800], litres: [0, 10000000],
 };
 const MIN_GAP_MS = 2000;
 const HISTORY_SLOTS = 720; // one slot per minute: the last 12 hours
